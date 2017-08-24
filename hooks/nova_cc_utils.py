@@ -93,9 +93,6 @@ SERVICE_BLACKLIST = {
     'newton': ['nova-cert'],
 }
 
-# API_PORTS is now in nova_cc_common.py to break the circular dependency
-# between nova_cc_utils.py and nova_cc_context.py
-
 NOVA_CONF_DIR = "/etc/nova"
 NEUTRON_CONF_DIR = "/etc/neutron"
 
