@@ -508,7 +508,7 @@ class ConsoleSSLContext(ch_context.OSContextGenerator):
             ctxt['ssl_key'] = key_path
 
             if ch_cluster.is_clustered():
-                ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+                ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
             else:
                 ip_addr = hookenv.unit_get('private-address')
 
@@ -532,7 +532,7 @@ class SerialConsoleContext(ch_context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
-        ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+        ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
         ip_addr = ch_network_ip.format_ipv6_addr(ip_addr) or ip_addr
 
         ctxt = {
