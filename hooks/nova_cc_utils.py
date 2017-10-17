@@ -51,6 +51,7 @@ from charmhelpers.contrib.openstack.utils import (
     incomplete_relation_data,
     is_ip,
     os_release,
+    reset_os_release,
     save_script_rc as _save_script_rc,
     is_unit_paused_set,
     make_assess_status_func,
@@ -74,7 +75,6 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     config,
     is_leader,
-    is_relation_made,
     log,
     relation_get,
     relation_ids,
@@ -526,6 +526,7 @@ def get_step_upgrade_source(new_src):
         'precise-icehouse/proposed': ('precise-proposed/grizzly',
                                       'cloud:precise-havana/proposed'),
         'trusty-liberty': ('*', 'cloud:trusty-kilo'),
+        'xenial-ocata': ('*', 'cloud:xenial-newton'),  # LP: #1711209
     }
     try:
         os_codename = get_os_codename_install_source(new_src)
@@ -551,12 +552,12 @@ def get_step_upgrade_source(new_src):
             continue
 
         with open(fpath, 'r') as f:
-            line = f.readline()
-            for target_src, (cur_pocket, step_src) in sources.items():
-                if target_src != new_src:
-                    continue
-                if cur_pocket in line:
-                    return step_src
+            for line in f.readlines():
+                for target_src, (cur_pocket, step_src) in sources.items():
+                    if target_src != new_src:
+                        continue
+                    if cur_pocket in line:
+                        return step_src
 
     return None
 
@@ -586,12 +587,6 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-def reset_os_release():
-    # Ugly hack to make os_release re-read versions
-    import charmhelpers.contrib.openstack.utils as utils
-    utils.os_rel = None
-
-
 def is_db_initialised():
     if relation_ids('cluster'):
         dbsync_state = peer_retrieve('dbsync_state')
@@ -603,6 +598,23 @@ def is_db_initialised():
     return False
 
 
+def is_cellv2_init_ready():
+    """Determine if we're ready to initialize the cell v2 databases
+
+    Cells v2 init requires transport_url and database connections to be set
+    in nova.conf.
+    """
+    amqp = context.AMQPContext()
+    shared_db = nova_cc_context.NovaCellV2SharedDBContext()
+    if (CompareOpenStackReleases(os_release('nova-common')) >= 'ocata' and
+            amqp() and shared_db()):
+        return True
+
+    log("OpenStack release, database, or rabbitmq not ready for Cells V2",
+        level=DEBUG)
+    return False
+
+
 def _do_openstack_upgrade(new_src):
     enable_policy_rcd()
     # All upgrades to Liberty are forced to step through Kilo. Liberty does
@@ -611,6 +623,12 @@ def _do_openstack_upgrade(new_src):
     if (CompareOpenStackReleases(os_release('nova-common')) == 'kilo' and
             is_leader()):
         migrate_nova_flavors()
+
+    # 'nova-manage db online_data_migrations' needs to be run before moving to
+    # the next release for environments upgraded using old charms where this
+    # step was not being executed (LP: #1711209).
+    online_data_migrations_if_needed()
+
     new_os_rel = get_os_codename_install_source(new_src)
     cmp_new_os_rel = CompareOpenStackReleases(new_os_rel)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
@@ -623,6 +641,7 @@ def _do_openstack_upgrade(new_src):
 
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
+    reset_os_release()
     apt_install(determine_packages(), fatal=True)
 
     disable_policy_rcd()
@@ -630,7 +649,6 @@ def _do_openstack_upgrade(new_src):
     # NOTE(jamespage) upgrade with existing config files as the
     # havana->icehouse migration enables new service_plugins which
     # create issues with db upgrades
-    reset_os_release()
     configs = register_configs(release=new_os_rel)
     configs.write_all()
 
@@ -655,6 +673,7 @@ def _do_openstack_upgrade(new_src):
     if is_leader():
         status_set('maintenance', 'Running nova db migration')
         migrate_nova_databases()
+
     if not is_unit_paused_set():
         [service_start(s) for s in services()]
 
@@ -692,29 +711,51 @@ def migrate_nova_flavors():
     '''Runs nova-manage to migrate flavor data if needed'''
     log('Migrating nova flavour information in database.', level=INFO)
     cmd = ['nova-manage', 'db', 'migrate_flavor_data']
-    subprocess.check_output(cmd)
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('migrate_flavor_data failed\n{}'.format(e.output), level=ERROR)
+        raise
+
+
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
+def online_data_migrations_if_needed():
+    '''Runs nova-manage to run online data migrations available since Mitaka'''
+    if (is_leader() and
+            CompareOpenStackReleases(os_release('nova-common')) >= 'mitaka'):
+        log('Running online_data_migrations', level=INFO)
+        cmd = ['nova-manage', 'db', 'online_data_migrations']
+        try:
+            subprocess.check_output(cmd)
+        except subprocess.CalledProcessError as e:
+            log('online_data_migrations failed\n{}'.format(e.output),
+                level=ERROR)
+            raise
 
 
 def migrate_nova_api_database():
     '''Initialize or migrate the nova_api database'''
     if CompareOpenStackReleases(os_release('nova-common')) >= 'mitaka':
+        log('Migrating the nova-api database.', level=INFO)
+        cmd = ['nova-manage', 'api_db', 'sync']
         try:
-            log('Migrating the nova-api database.', level=INFO)
-            cmd = ['nova-manage', 'api_db', 'sync']
             subprocess.check_output(cmd)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             # NOTE(coreycb): sync of api_db on upgrade from newton->ocata
             # fails but cell init is successful.
             log('Ignoring CalledProcessError during nova-api database '
-                'migration.', level=INFO)
-            return
+                'migration\n{}'.format(e.output), level=INFO)
 
 
 def migrate_nova_database():
     '''Initialize or migrate the nova database'''
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
-    subprocess.check_output(cmd)
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('db sync failed\n{}'.format(e.output), level=ERROR)
+        raise
 
 
 def initialize_cell_databases():
@@ -725,18 +766,44 @@ def initialize_cell_databases():
     '''
     log('Creating cell0 database records', level=INFO)
     cmd = ['nova-manage', 'cell_v2', 'map_cell0']
-    subprocess.check_output(cmd)
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('map_cell0 failed\n{}'.format(e.output), level=ERROR)
+        raise
 
     log('Creating cell1 database records', level=INFO)
-    cmd = ['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1']
-    rc = subprocess.call(cmd)
-    # TODO: Update to subprocess.check_call(), but note that rc == 2 is
-    # not a failure so only allow exception to be raised if rc == 1.
-    if rc == 0:
-        log('cell1 mapping was successfully created', level=INFO)
-    elif rc == 1:
-        raise Exception("Cannot initialize cell1 because of missing "
-                        "transport_url or database connection")
+    cmd = ['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1',
+           '--verbose']
+    try:
+        subprocess.check_output(cmd)
+        log('cell1 was successfully created', level=INFO)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            log('Cell1 create_cell failed\n{}'.format(e.output), level=ERROR)
+            raise
+        elif e.returncode == 2:
+            log('Cell1 create_cell failure ignored - a cell is already using '
+                'the transport_url/database combination.', level=INFO)
+
+
+def get_cell_uuid(cell):
+    '''Get cell uuid
+    :param cell: string cell name i.e. 'cell1'
+    :returns: string cell uuid
+    '''
+    log("Listing cell, '{}'".format(cell), level=INFO)
+    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
+    try:
+        out = subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('list_cells failed\n{}'.format(e.output), level=ERROR)
+        raise
+    cell_uuid = out.split(cell, 1)[1].split()[1]
+    if not cell_uuid:
+        raise Exception("Cannot find cell, '{}', in list_cells."
+                        "".format(cell))
+    return cell_uuid
 
 
 def update_cell_database():
@@ -746,34 +813,48 @@ def update_cell_database():
     changed to update the transport_url in the nova_api cell_mappings table.
     '''
     log('Updating cell1 properties', level=INFO)
-    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
-    out = subprocess.check_output(cmd)
-    cell1_uuid = out.split("cell1", 1)[1].split()[1]
-
+    cell1_uuid = get_cell_uuid('cell1')
     cmd = ['nova-manage', 'cell_v2', 'update_cell', '--cell_uuid', cell1_uuid]
-    rc = subprocess.call(cmd)
-    # TODO: Update to subprocess.check_call(), but note that rc == 2 is
-    # not a failure so only allow exception to be raised if rc == 1.
-    if rc == 0:
-        log('cell1 properties updated successfully', level=INFO)
-    elif rc == 1:
-        raise Exception("Cannot find cell1 while attempting properties update")
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            log('Cell1 update_cell failed\n{}'.format(e.output), level=ERROR)
+            raise
+        elif e.returncode == 2:
+            log('Cell1 update_cell failure ignored - the properties cannot '
+                'be set.', level=INFO)
+    else:
+        log('cell1 was successfully updated', level=INFO)
+
+
+def map_instances():
+    '''Map instances to cell
+
+    Updates nova_api.instance_mappings with pre-existing instances
+    '''
+    log('Cell1 map_instances', level=INFO)
+    cell1_uuid = get_cell_uuid('cell1')
+    cmd = ['nova-manage', 'cell_v2', 'map_instances',
+           '--cell_uuid', cell1_uuid]
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('Cell1 map_instances failed\n{}'.format(e.output), level=ERROR)
+        raise
 
 
 def add_hosts_to_cell():
-    '''Add any new compute hosts to cell1'''
-    # TODO: Replace the following checks with a Cellsv2 context check.
-    if (CompareOpenStackReleases(os_release('nova-common')) >= 'ocata' and
-            is_relation_made('amqp', 'password') and
-            is_relation_made('shared-db', 'novaapi_password') and
-            is_relation_made('shared-db', 'novacell0_password') and
-            is_relation_made('shared-db', 'nova_password')):
-        cmd = ['nova-manage', 'cell_v2', 'list_cells']
-        output = subprocess.check_output(cmd)
-        if 'cell1' in output:
-            log('Adding hosts to cell.', level=INFO)
-            cmd = ['nova-manage', 'cell_v2', 'discover_hosts']
-            subprocess.check_output(cmd)
+    '''Map compute hosts to cell'''
+    log('Cell1 discover_hosts', level=INFO)
+    cell1_uuid = get_cell_uuid('cell1')
+    cmd = ['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
+           cell1_uuid, '--verbose']
+    try:
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('Cell1 discover_hosts failed\n{}'.format(e.output), level=ERROR)
+        raise
 
 
 def finalize_migrate_nova_databases():
@@ -793,19 +874,16 @@ def migrate_nova_databases():
     if CompareOpenStackReleases(os_release('nova-common')) < 'ocata':
         migrate_nova_api_database()
         migrate_nova_database()
+        online_data_migrations_if_needed()
         finalize_migrate_nova_databases()
 
-    # TODO: Replace the following checks with a Cellsv2 context check.
-    elif (is_relation_made('amqp', 'password') and
-          is_relation_made('shared-db', 'novaapi_password') and
-          is_relation_made('shared-db', 'novacell0_password') and
-          is_relation_made('shared-db', 'nova_password')):
-        # Note: cells v2 init requires transport_url and database connections
-        # to be set in nova.conf.
+    elif is_cellv2_init_ready():
         migrate_nova_api_database()
         initialize_cell_databases()
         migrate_nova_database()
+        online_data_migrations_if_needed()
         add_hosts_to_cell()
+        map_instances()
         finalize_migrate_nova_databases()
 
 
