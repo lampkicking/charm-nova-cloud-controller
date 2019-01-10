@@ -554,12 +554,12 @@ def console_settings():
 
     if hookenv.config('console-proxy-ip') == 'local':
         if console_ssl:
-            address = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+            address = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
             address = ch_network_ip.format_ipv6_addr(address) or address
             proxy_base_addr = 'https://%s' % address
         else:
             # canonical_url will only return 'https:' if API SSL are enabled.
-            proxy_base_addr = ch_ip.canonical_url(CONFIGS, ch_ip.PUBLIC)
+            proxy_base_addr = ch_ip.canonical_url(CONFIGS, ch_ip.INTERNAL)
     else:
         if console_ssl or ch_cluster.https():
             schema = "https"
