@@ -810,9 +810,9 @@ class ApacheSSLContext(OSContextGenerator):
                 key_filename = 'key'
 
             write_file(path=os.path.join(ssl_dir, cert_filename),
-                       content=b64decode(cert), perms=0o640)
+                       content=b64decode(cert), owner='nova', group='nova', perms=0o440)
             write_file(path=os.path.join(ssl_dir, key_filename),
-                       content=b64decode(key), perms=0o640)
+                       content=b64decode(key), owner='nova', group='nova', perms=0o440)
 
     def configure_ca(self):
         ca_cert = get_ca_cert()

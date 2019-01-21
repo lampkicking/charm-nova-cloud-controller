@@ -198,10 +198,10 @@ def install_certs(ssl_dir, certs, chain=None):
             cert_data = cert_data + chain
         write_file(
             path=os.path.join(ssl_dir, cert_filename),
-            content=cert_data, perms=0o640)
+            content=cert_data, owner='nova', group='nova', perms=0o440)
         write_file(
             path=os.path.join(ssl_dir, key_filename),
-            content=bundle['key'], perms=0o640)
+            content=bundle['key'], owner='nova', group='nova', perms=0o440)
 
 
 def process_certificates(service_name, relation_id, unit,
