@@ -203,11 +203,11 @@ def install_certs(ssl_dir, certs, chain=None, user='root', group='root'):
             # trust certs signed by an intermediate in the chain
             cert_data = cert_data + os.linesep + chain
         write_file(
-            path=os.path.join(ssl_dir, cert_filename), owner=user, group=group,
-            content=cert_data, perms=0o640)
+            path=os.path.join(ssl_dir, cert_filename),
+            content=cert_data, owner='nova', group='nova', perms=0o440)
         write_file(
-            path=os.path.join(ssl_dir, key_filename), owner=user, group=group,
-            content=bundle['key'], perms=0o640)
+            path=os.path.join(ssl_dir, key_filename),
+            content=bundle['key'], owner='nova', group='nova', perms=0o440)
 
 
 def process_certificates(service_name, relation_id, unit,
