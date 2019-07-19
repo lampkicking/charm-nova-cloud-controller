@@ -126,7 +126,7 @@ class CheckException(Exception):
 
 
 class Check(object):
-    shortname_re = '[A-Za-z0-9-_.]+$'
+    shortname_re = '[A-Za-z0-9-_.@]+$'
     service_template = ("""
 #---------------------------------------------------
 # This file is Juju managed
@@ -305,7 +305,11 @@ class NRPE(object):
 
         # update-status hooks are configured to firing every 5 minutes by
         # default. When nagios-nrpe-server is restarted, the nagios server
+<<<<<<< HEAD:charmhelpers/contrib/charmsupport/nrpe.py
         # reports checks failing causing unneccessary alerts. Let's not restart
+=======
+        # reports checks failing causing unnecessary alerts. Let's not restart
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01:charmhelpers/contrib/charmsupport/nrpe.py
         # on update-status hooks.
         if not hook_name() == 'update-status':
             service('restart', 'nagios-nrpe-server')

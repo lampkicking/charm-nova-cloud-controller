@@ -45,49 +45,49 @@ class NovaComputeContextTests(CharmTestCase):
         self.relation_get.side_effect = self.test_relation.get
         self.config.side_effect = self.test_config.get
         self.log.side_effect = fake_log
+        self.os_release.return_value = 'icehouse'
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_without_memcache(self, os_release, log_):
+    def test_remote_memcache_context_without_memcache(self, os_release, log_):
         self.relation_ids.return_value = 'cache:0'
         self.related_units.return_value = 'memcached/0'
-        instance_console = context.InstanceConsoleContext()
+        remote_memcache = context.RemoteMemcacheContext()
         os_release.return_value = 'icehouse'
-        self.assertEqual({'memcached_servers': ''},
-                         instance_console())
+        self.assertEqual({}, remote_memcache())
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_with_memcache(self, os_release, log_):
-        self.check_instance_console_context_with_memcache(os_release,
-                                                          '127.0.1.1',
-                                                          '127.0.1.1')
+    def test_remote_memcache_context_with_memcache(self, os_release, log_):
+        self.check_remote_memcache_context_with_memcache(os_release,
+                                                         '127.0.1.1',
+                                                         '127.0.1.1')
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_with_memcache_ipv6(self, os_release,
-                                                         log_):
-        self.check_instance_console_context_with_memcache(os_release, '::1',
-                                                          '[::1]')
+    def test_remote_memcache_context_with_memcache_ipv6(self, os_release,
+                                                        log_):
+        self.check_remote_memcache_context_with_memcache(os_release, '::1',
+                                                         '[::1]')
 
-    def check_instance_console_context_with_memcache(self, os_release, ip,
-                                                     formated_ip):
+    def check_remote_memcache_context_with_memcache(self, os_release, ip,
+                                                    formated_ip):
         memcached_servers = [{'private-address': formated_ip,
                               'port': '11211'}]
         self.relation_ids.return_value = ['cache:0']
         self.relations_for_id.return_value = memcached_servers
         self.related_units.return_value = 'memcached/0'
-        instance_console = context.InstanceConsoleContext()
+        remote_memcache = context.RemoteMemcacheContext()
         os_release.return_value = 'icehouse'
         self.maxDiff = None
         self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
-                         instance_console())
+                         remote_memcache())
 
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.neutron.config')
@@ -150,6 +150,10 @@ class NovaComputeContextTests(CharmTestCase):
                              mock_get_address_in_network, mock_kv, mock_https,
                              mock_unit_get, mock_network_manager, mock_mkdir,
                              mock_get_relation_ip, mock_config):
+<<<<<<< HEAD
+=======
+        self.os_release.return_value = 'ocata'
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         mock_config.side_effect = self.test_config.get
         mock_https.return_value = False
         mock_unit_get.return_value = '127.0.0.1'
@@ -157,7 +161,25 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.HAProxyContext()()
         self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
                          [8774, 8764])
+        self.assertTrue('nova-placement-api' in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' not in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' not in ctxt['service_ports'])
 
+<<<<<<< HEAD
+=======
+        self.os_release.return_value = 'icehouse'
+        ctxt = context.HAProxyContext()()
+        self.assertTrue('nova-placement-api' not in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' in ctxt['service_ports'])
+
+        self.os_release.return_value = 'kilo'
+        ctxt = context.HAProxyContext()()
+        self.assertTrue('nova-placement-api' not in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' not in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' not in ctxt['service_ports'])
+
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     @mock.patch('charmhelpers.contrib.openstack.context.config')
     def test_console_ssl_disabled(self, mock_config):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
@@ -314,6 +336,7 @@ class NovaComputeContextTests(CharmTestCase):
         mock_config.side_effect = self.test_config.get
         mock_config_ip.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
+        self.test_config.set('scheduler-default-filters', 'TestFilter')
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
@@ -323,6 +346,45 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('ram-allocation-ratio'))
         self.assertEqual(ctxt['disk_allocation_ratio'],
                          self.config('disk-allocation-ratio'))
+<<<<<<< HEAD
+=======
+        self.assertEqual(ctxt['quota_instances'],
+                         self.config('quota-instances'))
+        self.assertEqual(ctxt['quota_instances'], None)
+        self.assertEqual(ctxt['quota_cores'],
+                         self.config('quota-cores'))
+        self.assertEqual(ctxt['quota_cores'], None)
+        self.assertEqual(ctxt['quota_ram'],
+                         self.config('quota-ram'))
+        self.assertEqual(ctxt['quota_ram'], None)
+        self.assertEqual(ctxt['quota_metadata_items'],
+                         self.config('quota-metadata-items'))
+        self.assertEqual(ctxt['quota_metadata_items'], None)
+        self.assertEqual(ctxt['quota_injected_files'],
+                         self.config('quota-injected-files'))
+        self.assertEqual(ctxt['quota_injected_files'], None)
+        self.assertEqual(ctxt['quota_injected_file_content_bytes'],
+                         self.config('quota-injected-file-size'))
+        self.assertEqual(ctxt['quota_injected_file_content_bytes'], None)
+        self.assertEqual(ctxt['quota_injected_file_path_length'],
+                         self.config('quota-injected-path-size'))
+        self.assertEqual(ctxt['quota_injected_file_path_length'], None)
+        self.assertEqual(ctxt['quota_key_pairs'],
+                         self.config('quota-key-pairs'))
+        self.assertEqual(ctxt['quota_key_pairs'], None)
+        self.assertEqual(ctxt['quota_server_groups'],
+                         self.config('quota-server-groups'))
+        self.assertEqual(ctxt['quota_server_groups'], None)
+        self.assertEqual(ctxt['quota_server_group_members'],
+                         self.config('quota-server-group-members'))
+        self.assertEqual(ctxt['quota_server_group_members'], None)
+        self.assertEqual(ctxt['enable_new_services'],
+                         self.config('enable-new-services'))
+        self.assertEqual(ctxt['console_access_protocol'],
+                         self.config('console-access-protocol'))
+        self.assertEqual(ctxt['console_access_port'],
+                         self.config('console-access-port'))
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     _pci_alias1 = {
         "name": "IntelNIC",
@@ -472,7 +534,11 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NovaMetadataContext()()
 
         self.assertTrue(ctxt['vendor_data'])
+<<<<<<< HEAD
         self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON'])
+=======
+        self.assertEqual(ctxt['vendordata_providers'], 'StaticJSON')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     def test_vendordata_dynamic(self):
         _vdata_url = 'http://example.org/vdata'
@@ -482,7 +548,11 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NovaMetadataContext()()
 
         self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
+<<<<<<< HEAD
         self.assertEqual(ctxt['vendordata_providers'], ['DynamicJSON'])
+=======
+        self.assertEqual(ctxt['vendordata_providers'], 'DynamicJSON')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     def test_vendordata_static_and_dynamic(self):
         self.os_release.return_value = 'rocky'
@@ -495,8 +565,13 @@ class NovaComputeContextTests(CharmTestCase):
 
         self.assertTrue(ctxt['vendor_data'])
         self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
+<<<<<<< HEAD
         self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON',
                                                         'DynamicJSON'])
+=======
+        self.assertEqual(ctxt['vendordata_providers'],
+                         'StaticJSON,DynamicJSON')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     def test_vendordata_mitaka(self):
         self.os_release.return_value = 'mitaka'
@@ -544,3 +619,21 @@ class NovaComputeContextTests(CharmTestCase):
         self.related_units.return_value = ['nova-cell-conductor/0']
         ctxt = context.NovaCellV2Context()()
         self.assertEqual(ctxt, {})
+<<<<<<< HEAD
+=======
+
+    def test_default_enabled_filters_icehouse(self):
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._base_enabled_filters)
+
+    def test_default_enabled_filters_pike(self):
+        self.os_release.return_value = 'pike'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._pike_enabled_filters)
+
+    def test_default_enabled_filters_rocky(self):
+        self.os_release.return_value = 'rocky'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._pike_enabled_filters)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01

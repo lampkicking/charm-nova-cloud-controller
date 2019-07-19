@@ -149,6 +149,11 @@ options:
     description: |
       Protocol to use when accessing virtual machine console. Supported types
       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc).
+  console-access-port:
+    type: int
+    default:
+    description: |
+      Used to customize the console access port.
   console-proxy-ip:
     type: string
     default: local
@@ -165,6 +170,10 @@ options:
     type: string
     default:
     description: |
+      DEPRECATED: Please use ssl_cert configuration option or the vault
+      certificates relation.  This configuration option will be removed
+      in the 19.07 charm release.
+      .
       Used for encrypted console connections. This differs from the SSL
       certificate used for API endpoints and is used for console sessions only.
       Setting this value along with console-ssl-key will enable encrypted
@@ -174,7 +183,12 @@ options:
   console-ssl-key:
     type: string
     default:
-    description: SSL key to use with certificate specified as console-ssl-cert.
+    description: |
+      DEPRECATED: Please use ssl_key configuration option or the vault
+      certificates relation.  This configuration option will be removed
+      in the 19.07 charm release.
+      .
+      SSL key to use with certificate specified as console-ssl-cert.
   enable-serial-console:
     type: boolean
     default: false
@@ -182,6 +196,22 @@ options:
       Enable serial console access to instances using websockets (insecure).
       This is only supported on OpenStack Juno or later, and will disable the
       normal console-log output for an instance.
+  enable-new-services:
+    type: boolean
+    default: True
+    description: |
+       Enable new nova-compute services on this host automatically.
+       When a new nova-compute service starts up, it gets registered in the
+       database as an enabled service. Sometimes it can be useful to register
+       new compute services in disabled state and then enabled them at a later
+       point in time. This option only sets this behavior for nova-compute
+       services, it does not auto-disable other services like nova-conductor,
+       nova-scheduler, nova-consoleauth, or nova-osapi_compute.
+       Possible values: True: Each new compute service is enabled as soon as
+       it registers itself. False: Compute services must be enabled via an
+       os-services REST API call or with the CLI with
+       nova service-enable <hostname> <binary>, otherwise they are not ready
+       to use.
   worker-multiplier:
     type: float
     default:
@@ -201,12 +231,13 @@ options:
       at the expense of instance performance.
   ram-allocation-ratio:
     type: float
-    default: 1.5
+    default: 0.98
     description: |
       The physical ram -> virtual ram ratio to use in the Nova scheduler.
       .
       Increasing this value will increase instance density on compute nodes
       at the potential expense of instance performance.
+<<<<<<< HEAD
   disk-allocation-ratio:
     type: float
     default: 1.0
@@ -218,14 +249,20 @@ options:
   single-nova-consoleauth:
     type: boolean
     default: true
-    description: |
-      When this configuration is set to True, a single instance of
-      nova-consoleauth service will be running, this allows users to always
-      authenticate against the same instance and avoid authentications issues
-      when the token used was stored in a different instance.
+=======
       .
-      If memcached is being used to store the tokens, then it's recommended to
-      change this configuration to False.
+      NOTE: When in a hyper-converged architecture, make sure to make enough
+      room for infrastructure services running on your compute hosts by
+      adjusting this value.
+  disk-allocation-ratio:
+    type: float
+    default: 1.0
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
+    description: |
+      Increase the amount of disk space that nova can overcommit to guests.
+      .
+      Increasing this value will increase instance density on compute nodes
+      with an increased risk of hypervisor storage becoming full.
   action-managed-upgrade:
     type: boolean
     default: False
@@ -238,10 +275,14 @@ options:
       all units on config change.
   scheduler-default-filters:
     type: string
+<<<<<<< HEAD
     default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter,DifferentHostFilter,SameHostFilter"
+=======
+    default:
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     description: |
       List of filter class names to use for filtering hosts when not specified in
-      the request.
+      the request.  The default filters varies based on OpenStack release.
   pci-alias:
     type: string
     default:
@@ -449,3 +490,92 @@ options:
       .
       Only supported in OpenStack Newton and higher. For deployments prior to
       Queens this value should be set in the neutron-gateway charm.
+<<<<<<< HEAD
+=======
+  quota-instances:
+    type: int
+    default:
+    description: |
+      The number of instances allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-cores:
+    type: int
+    default:
+    description: |
+      The number of instance cores or vCPUs allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-ram:
+    type: int
+    default:
+    description: |
+      The number of megabytes of instance RAM allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-metadata-items:
+    type: int
+    default:
+    description: |
+      The number of metadata items allowed per instance.
+      .
+      Users can associate metadata with an instance during instance creation.
+      This metadata takes the form of key-value pairs.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-files:
+    type: int
+    default:
+    description: |
+      The number of injected files allowed.
+      .
+      File injection allows users to customize the personality of an instance
+      by injecting data into it upon boot.
+      Only text file injection is permitted: binary or ZIP files are not accepted.
+      During file injection, any existing files that match specified files are
+      renamed to include .bak extension appended with a timestamp.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-file-size:
+    type: int
+    default:
+    description: |
+      The number of bytes allowed per injected file.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-path-size:
+    type: int
+    default:
+    description: |
+      The maximum allowed injected file path length.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-key-pairs:
+    type: int
+    default:
+    description: |
+      The maximum number of key pairs allowed per user.
+      .
+      Users can create at least one key pair for each project and use the key
+      pair for multiple instances that belong to that project.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-server-groups:
+    type: int
+    default:
+    description: |
+      The maxiumum number of server groups per project. Not supported in Icehouse
+      and before
+      .
+      Server groups are used to control the affinity and anti-affinity
+      scheduling policy for a group of servers or instances. Reducing the
+      quota will not affect any existing group, but new servers will not be
+      allowed into groups that have become over quota.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-server-group-members:
+    type: int
+    default:
+    description: |
+      The maximum number of servers per server group. Not supported in Icehouse
+      and before
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01

@@ -15,6 +15,10 @@
 import amulet
 import json
 import tempfile
+<<<<<<< HEAD
+=======
+import os
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -80,6 +84,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         )
         if cmp_os_release >= 'newton':
             services.remove('nova-cert')
+        if cmp_os_release >= 'rocky':
+            services.remove('nova-api-os-compute')
         u.get_unit_process_ids(
             {self.nova_cc_sentry: services},
             expect_success=should_run)
@@ -305,7 +311,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                        'nova-network',
                                        'nova-api'],
             self.keystone_sentry: ['keystone'],
-            self.glance_sentry: ['glance-registry', 'glance-api']
+            self.glance_sentry: ['glance-api']
         }
         cmp_os_release = CompareOpenStackReleases(
             self._get_openstack_release_string()
@@ -323,6 +329,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() >= self.xenial_ocata:
             services[self.nova_compute_sentry].remove('nova-network')
             services[self.nova_compute_sentry].remove('nova-api')
+
+        if self._get_openstack_release() >= self.bionic_rocky:
+            services[self.nova_cc_sentry].remove('nova-api-os-compute')
+            services[self.nova_cc_sentry].append('apache2')
 
         ret = u.validate_services_by_name(services)
         if ret:
@@ -788,6 +798,17 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         u.delete_resource(self.nova_demo.servers, instance.id,
                           msg="nova instance")
 
+    def test_500_security_checklist_action(self):
+        """Verify expected result on a default install"""
+        u.log.debug("Testing security-checklist")
+        sentry_unit = self.nova_cc_sentry
+
+        action_id = u.run_action(sentry_unit, "security-checklist")
+        u.wait_on_action(action_id)
+        data = amulet.actions.get_action_output(action_id, full_output=True)
+        assert data.get(u"status") == "failed", \
+            "Security check is expected to not pass by default"
+
     def test_900_restart_on_config_change(self):
         """Verify that the specified services are restarted when the config
            is changed."""
@@ -818,13 +839,17 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if cmp_os_release >= 'newton':
             del services['nova-cert']
 
+        if cmp_os_release >= 'rocky':
+            del services['nova-api-os-compute']
+            services['apache2'] = conf_file
+
         if self._get_openstack_release() >= self.xenial_ocata:
             # nova-placement-api is run under apache2 with mod_wsgi
             services['apache2'] = conf_file
 
         # Expected default and alternate values
-        flags_default = 'quota_cores=20,quota_instances=40,quota_ram=102400'
-        flags_alt = 'quota_cores=10,quota_instances=20,quota_ram=51200'
+        flags_default = 'cpu-allocation-ratio=16.0,ram-allocation-ratio=0.98'
+        flags_alt = 'cpu-allocation-ratio=32.0,ram-allocation-ratio=3.0'
         set_default = {'config-flags': flags_default}
         set_alternate = {'config-flags': flags_alt}
 
@@ -857,3 +882,64 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         action_id = u.run_action(self.nova_cc_sentry, "resume")
         assert u.wait_on_action(action_id), "Resume action failed"
         self._assert_services(should_run=True)
+
+    def test_902_default_quota_settings(self):
+        """Test default quota settings."""
+        config_file = '/etc/nova/nova.conf'
+        quotas = {
+            'quota-instances': 20,
+            'quota-cores': 40,
+            'quota-ram': 102400,
+            'quota-metadata-items': 256,
+            'quota-injected-files': 10,
+            'quota-injected-file-size': 20480,
+            'quota-injected-path-size': 512,
+            'quota-key-pairs': 200,
+            'quota-server-groups': 20,
+            'quota-server-group-members': 20,
+        }
+        cmp_os_release = CompareOpenStackReleases(
+            self._get_openstack_release_string()
+        )
+        if cmp_os_release > 'newton':
+            section = 'quota'
+        else:
+            section = 'DEFAULT'
+        u.log.debug('Changing quotas in charm config')
+        self.d.configure('nova-cloud-controller', quotas)
+        self._auto_wait_for_status(exclude_services=self.exclude_services)
+        self.d.sentry.wait()
+
+        if not u.validate_config_data(self.nova_cc_sentry, config_file,
+                                      section, quotas):
+            amulet.raise_status(amulet.FAIL, msg='update failed')
+
+        u.log.debug('New default quotas found in correct section in nova.conf')
+        u.log.debug('test_902_default_quota_settings PASSED - (OK)')
+
+        # Amulet test framework currently does not support setting charm-config
+        # values to None when an integer is expected by the configuration.
+        # By default, the quota settings are not written to nova.conf unless
+        # explicitly set. In order to keep tests idempotent, the following juju
+        # CLI commands are run to reset the quota values to None.
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-instances")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-cores")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-ram")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-metadata-items")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-files")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-file-size")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-path-size")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-key-pairs")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-server-groups")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-server-group-members")
+        self._auto_wait_for_status(exclude_services=self.exclude_services)

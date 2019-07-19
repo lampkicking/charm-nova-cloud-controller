@@ -46,6 +46,16 @@ class ApacheSSLContext(ch_context.ApacheSSLContext):
     external_ports = []
     service_namespace = 'nova'
 
+<<<<<<< HEAD
+=======
+    # NOTE(fnordahl): The novncproxy service runs as user ``nova`` throughout
+    # its lifespan, and it has no load certificates before dropping privileges
+    # mechanism.
+    #
+    # Set file permissions on certificate files to support this. LP: #1819140
+    group = 'nova'
+
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     def __init__(self, _external_ports_maybe_callable):
         self._external_ports_maybe_callable = _external_ports_maybe_callable
         self.external_ports = None
@@ -158,6 +168,8 @@ class HAProxyContext(ch_context.HAProxyContext):
         '''
         ctxt = super(HAProxyContext, self).__call__()
 
+        os_rel = ch_utils.os_release('nova-common')
+        cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
         compute_api = ch_cluster.determine_api_port(
@@ -203,11 +215,47 @@ class HAProxyContext(ch_context.HAProxyContext):
                 common.api_port('nova-api-metadata'), a_metadata_api],
         }
 
+        if cmp_os_rel >= 'kilo':
+            del listen_ports['ec2_listen_port']
+            del listen_ports['s3_listen_port']
+            del port_mapping['nova-api-ec2']
+            del port_mapping['nova-objectstore']
+
+        if cmp_os_rel < 'ocata':
+            del listen_ports['placement_listen_port']
+            del port_mapping['nova-placement-api']
+
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
         # for nova.conf
         ctxt['listen_ports'] = listen_ports
-        ctxt['port'] = placement_api
+        return ctxt
+
+
+class PlacementAPIHAProxyContext(HAProxyContext):
+    """Context for the nova placement api service."""
+
+    def __call__(self):
+        ctxt = super(PlacementAPIHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['placement_listen_port']
+        return ctxt
+
+
+class ComputeAPIHAProxyContext(HAProxyContext):
+    """Context for the nova os compute api service."""
+
+    def __call__(self):
+        ctxt = super(ComputeAPIHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['osapi_compute_listen_port']
+        return ctxt
+
+
+class MetaDataHAProxyContext(HAProxyContext):
+    """Context for the nova metadata service."""
+
+    def __call__(self):
+        ctxt = super(MetaDataHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['metadata_listen_port']
         return ctxt
 
 
@@ -271,11 +319,63 @@ class IdentityServiceContext(ch_context.IdentityServiceContext):
         return ctxt
 
 
+<<<<<<< HEAD
+=======
+_base_enabled_filters = [
+    "RetryFilter",
+    "AvailabilityZoneFilter",
+    "CoreFilter",
+    "RamFilter",
+    "DiskFilter",
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
+
+# NOTE: Core,Ram,Disk filters obsolete due
+#       placement API functionality
+_pike_enabled_filters = [
+    "RetryFilter",
+    "AvailabilityZoneFilter",
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
+
+
+def default_enabled_filters():
+    """
+    Determine the list of default filters for scheduler use
+
+    :returns: list of filters to use
+    :rtype: list of str
+    """
+    os_rel = ch_utils.os_release('nova-common')
+    cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
+    if cmp_os_rel >= 'pike':
+        return _pike_enabled_filters
+    return _base_enabled_filters
+
+
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 class NovaConfigContext(ch_context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['scheduler_default_filters'] = (
+<<<<<<< HEAD
             hookenv.config('scheduler-default-filters'))
+=======
+            hookenv.config('scheduler-default-filters') or
+            ','.join(default_enabled_filters()))
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         if hookenv.config('pci-alias'):
             aliases = json.loads(hookenv.config('pci-alias'))
             if isinstance(aliases, list):
@@ -287,8 +387,30 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['disk_allocation_ratio'] = hookenv.config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
+<<<<<<< HEAD
         addr = ch_ip.resolve_address(ch_ip.INTERNAL)
         ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
+=======
+        ctxt['enable_new_services'] = hookenv.config('enable-new-services')
+        addr = ch_ip.resolve_address(ch_ip.INTERNAL)
+        ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
+        ctxt['quota_instances'] = hookenv.config('quota-instances')
+        ctxt['quota_cores'] = hookenv.config('quota-cores')
+        ctxt['quota_ram'] = hookenv.config('quota-ram')
+        ctxt['quota_metadata_items'] = hookenv.config('quota-metadata-items')
+        ctxt['quota_injected_files'] = hookenv.config('quota-injected-files')
+        ctxt['quota_injected_file_content_bytes'] = hookenv.config(
+            'quota-injected-file-size')
+        ctxt['quota_injected_file_path_length'] = hookenv.config(
+            'quota-injected-path-size')
+        ctxt['quota_key_pairs'] = hookenv.config('quota-key-pairs')
+        ctxt['quota_server_groups'] = hookenv.config('quota-server-groups')
+        ctxt['quota_server_group_members'] = hookenv.config(
+            'quota-server-group-members')
+        ctxt['console_access_protocol'] = hookenv.config(
+            'console-access-protocol')
+        ctxt['console_access_port'] = hookenv.config('console-access-port')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         return ctxt
 
 
@@ -299,14 +421,22 @@ class NovaIPv6Context(ch_context.BindHostContext):
         return ctxt
 
 
+<<<<<<< HEAD
 class InstanceConsoleContext(ch_context.OSContextGenerator):
     interfaces = []
+=======
+class RemoteMemcacheContext(ch_context.OSContextGenerator):
+    interfaces = ['memcache']
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     def __call__(self):
-        ctxt = {}
         servers = []
         try:
+<<<<<<< HEAD
             for rid in hookenv.relation_ids('memcache'):
+=======
+            for rid in hookenv.relation_ids(self.interfaces[0]):
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
                 for rel in hookenv.relations_for_id(rid):
                     priv_addr = rel['private-address']
                     # Format it as IPv6 address if needed
@@ -318,8 +448,18 @@ class InstanceConsoleContext(ch_context.OSContextGenerator):
                         level='WARNING')
             servers = []
 
-        ctxt['memcached_servers'] = ','.join(servers)
+        if servers:
+            return {
+                'memcached_servers': ','.join(servers)
+            }
+        return {}
 
+
+class InstanceConsoleContext(ch_context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
         # Configure nova-novncproxy https if nova-api is using https.
         if ch_cluster.https():
             cn = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
@@ -372,7 +512,11 @@ class ConsoleSSLContext(ch_context.OSContextGenerator):
             ctxt['ssl_key'] = key_path
 
             if ch_cluster.is_clustered():
+<<<<<<< HEAD
                 ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
+=======
+                ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
             else:
                 ip_addr = hookenv.unit_get('private-address')
 
@@ -396,7 +540,11 @@ class SerialConsoleContext(ch_context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
+<<<<<<< HEAD
         ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
+=======
+        ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         ip_addr = ch_network_ip.format_ipv6_addr(ip_addr) or ip_addr
 
         ctxt = {
@@ -440,17 +588,30 @@ class NovaMetadataContext(ch_context.OSContextGenerator):
             ch_utils.os_release('nova-common'))
         ctxt = {}
         if cmp_os_release >= 'rocky':
+<<<<<<< HEAD
             ctxt['vendordata_providers'] = []
+=======
+            vdata_providers = []
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
             vdata = hookenv.config('vendor-data')
             vdata_url = hookenv.config('vendor-data-url')
 
             if vdata:
                 ctxt['vendor_data'] = True
+<<<<<<< HEAD
                 ctxt['vendordata_providers'].append('StaticJSON')
 
             if vdata_url:
                 ctxt['vendor_data_url'] = vdata_url
                 ctxt['vendordata_providers'].append('DynamicJSON')
+=======
+                vdata_providers.append('StaticJSON')
+
+            if vdata_url:
+                ctxt['vendor_data_url'] = vdata_url
+                vdata_providers.append('DynamicJSON')
+            ctxt['vendordata_providers'] = ','.join(vdata_providers)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
             ctxt['metadata_proxy_shared_secret'] = hookenv.leader_get(
                 'shared-metadata-secret')
             ctxt['enable_metadata'] = True

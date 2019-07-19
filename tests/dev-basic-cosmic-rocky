@@ -15,10 +15,26 @@
 # limitations under the License.
 
 """Amulet tests on a basic nova cloud controller deployment on
+<<<<<<< HEAD
+<<<<<<< HEAD:tests/dev-basic-cosmic-rocky
    cosmic-rocky."""
+=======
+   disco-stein."""
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01:tests/dev-basic-disco-stein
+=======
+   cosmic-rocky."""
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 from basic_deployment import NovaCCBasicDeployment
 
 if __name__ == '__main__':
+<<<<<<< HEAD
+<<<<<<< HEAD:tests/dev-basic-cosmic-rocky
     deployment = NovaCCBasicDeployment(series='cosmic')
+=======
+    deployment = NovaCCBasicDeployment(series='disco')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01:tests/dev-basic-disco-stein
+=======
+    deployment = NovaCCBasicDeployment(series='cosmic')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     deployment.run_tests()
