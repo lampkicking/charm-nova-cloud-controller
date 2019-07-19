@@ -168,7 +168,8 @@ class OpenStackAmuletDeployment(AmuletDeployment):
                          'nrpe', 'openvswitch-odl', 'neutron-api-odl',
                          'odl-controller', 'cinder-backup', 'nexentaedge-data',
                          'nexentaedge-iscsi-gw', 'nexentaedge-swift-gw',
-                         'cinder-nexentaedge', 'nexentaedge-mgmt']))
+                         'cinder-nexentaedge', 'nexentaedge-mgmt',
+                         'ceilometer-agent']))
 
         if self.openstack:
             for svc in services:
@@ -292,7 +293,13 @@ class OpenStackAmuletDeployment(AmuletDeployment):
             ('artful', None): self.artful_pike,
             ('bionic', None): self.bionic_queens,
             ('bionic', 'cloud:bionic-rocky'): self.bionic_rocky,
+<<<<<<< HEAD:charmhelpers/contrib/openstack/amulet/deployment.py
             ('cosmic', None): self.cosmic_rocky,
+=======
+            ('bionic', 'cloud:bionic-stein'): self.bionic_stein,
+            ('cosmic', None): self.cosmic_rocky,
+            ('disco', None): self.disco_stein,
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01:charmhelpers/contrib/openstack/amulet/deployment.py
         }
         return releases[(self.series, self.openstack)]
 
@@ -309,6 +316,10 @@ class OpenStackAmuletDeployment(AmuletDeployment):
             ('artful', 'pike'),
             ('bionic', 'queens'),
             ('cosmic', 'rocky'),
+<<<<<<< HEAD:charmhelpers/contrib/openstack/amulet/deployment.py
+=======
+            ('disco', 'stein'),
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01:charmhelpers/contrib/openstack/amulet/deployment.py
         ])
         if self.openstack:
             os_origin = self.openstack.split(':')[1]

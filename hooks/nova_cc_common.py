@@ -73,5 +73,10 @@ def console_attributes(attr, proto=None):
         else:
             return None
     if console_proto in CONSOLE_CONFIG:
+<<<<<<< HEAD
+=======
+        if attr == 'proxy-port' and hookenv.config('console-access-port'):
+            return hookenv.config('console-access-port')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         return CONSOLE_CONFIG[console_proto][attr]
     return None

@@ -93,6 +93,12 @@ SERVICE_BLACKLIST = {
     'newton': ['nova-cert'],
 }
 
+<<<<<<< HEAD
+=======
+# API_PORTS is now in nova_cc_common.py to break the circular dependency
+# between nova_cc_utils.py and nova_cc_context.py
+
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 NOVA_CONF_DIR = "/etc/nova"
 NEUTRON_CONF_DIR = "/etc/neutron"
 
@@ -103,11 +109,22 @@ APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 MEMCACHED_CONF = '/etc/memcached.conf'
 WSGI_NOVA_PLACEMENT_API_CONF = \
-    '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
+    '/etc/apache2/sites-enabled/wsgi-placement-api.conf'
 PACKAGE_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/nova-placement-api.conf'
+<<<<<<< HEAD
 WSGI_NOVA_METADATA_API_CONF = \
     '/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf'
+=======
+OLD_WSGI_NOVA_PLACEMENT_API_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
+WSGI_NOVA_METADATA_API_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf'
+PACKAGE_NOVA_API_OS_COMPUTE_CONF = \
+    '/etc/apache2/sites-available/nova-api-os-compute.conf'
+WSGI_NOVA_API_OS_COMPUTE_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-api-os-compute.conf'
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 VENDORDATA_FILE = '/etc/nova/vendor_data.json'
 
 
@@ -165,6 +182,10 @@ def get_base_resource_map():
                     nova_cc_context.NovaIPv6Context(),
                     nova_cc_context.NeutronCCContext(),
                     nova_cc_context.NovaConfigContext(),
+<<<<<<< HEAD
+=======
+                    nova_cc_context.RemoteMemcacheContext(),
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
                     nova_cc_context.InstanceConsoleContext(),
                     nova_cc_context.ConsoleSSLContext(),
                     nova_cc_context.CloudComputeContext(),
@@ -211,6 +232,26 @@ SERIAL_CONSOLE = {
 }
 
 
+def _replace_service_with_apache2(service, wsgi_script, wsgi_config,
+                                  resource_map, context):
+    for cfile in resource_map:
+        svcs = resource_map[cfile]['services']
+        if service in svcs:
+            svcs.remove(service)
+            if 'apache2' not in svcs:
+                svcs.append('apache2')
+    resource_map[wsgi_config] = {
+        'contexts': [
+            ch_context.WSGIWorkerConfigContext(
+                name=service,
+                script=wsgi_script,
+                user='nova',
+                group='nova'
+            ),
+            context],
+        'services': ['apache2']}
+
+
 def resource_map(actual_services=True):
     '''
     Dynamically generate a map of resources that will be managed for a single
@@ -242,6 +283,7 @@ def resource_map(actual_services=True):
     if common.console_attributes('services'):
         _resource_map[NOVA_CONF]['services'] += (
             common.console_attributes('services'))
+<<<<<<< HEAD
         # nova-consoleauth will be managed by pacemaker, if
         # single-nova-consoleauth is used, then don't monitor for the
         # nova-consoleauth service to be started (LP: #1660244).
@@ -252,6 +294,10 @@ def resource_map(actual_services=True):
                 services.remove('nova-consoleauth')
 
     if (hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'):
+=======
+
+    if is_serial_console_enabled(cmp_os_release):
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         _resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']
 
     # also manage any configs that are being updated by subordinates.
@@ -268,7 +314,19 @@ def resource_map(actual_services=True):
             'contexts': [ch_context.MemcacheContext()],
             'services': ['memcached']}
 
+    if (actual_services and
+            ch_utils.CompareOpenStackReleases(release) >= 'rocky'):
+        # For Rocky we decided to switch from systemd to use apache2
+        # wsgi mod for the service nova-api-os-compute.
+        _replace_service_with_apache2(
+            'nova-api-os-compute',
+            '/usr/bin/nova-api-wsgi',
+            WSGI_NOVA_API_OS_COMPUTE_CONF,
+            _resource_map,
+            nova_cc_context.ComputeAPIHAProxyContext())
+
     if actual_services and placement_api_enabled():
+<<<<<<< HEAD
         for cfile in _resource_map:
             svcs = _resource_map[cfile]['services']
             if 'nova-placement-api' in svcs:
@@ -283,6 +341,14 @@ def resource_map(actual_services=True):
                 nova_cc_context.HAProxyContext()],
             'services': ['apache2']
         }
+=======
+        _replace_service_with_apache2(
+            'nova-placement-api',
+            '/usr/bin/nova-placement-api',
+            WSGI_NOVA_PLACEMENT_API_CONF,
+            _resource_map,
+            nova_cc_context.PlacementAPIHAProxyContext())
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     elif not placement_api_enabled():
         for cfile in _resource_map:
             svcs = _resource_map[cfile]['services']
@@ -365,7 +431,11 @@ def determine_packages():
         pass
     if common.console_attributes('packages'):
         packages.extend(common.console_attributes('packages'))
+<<<<<<< HEAD
     if (hookenv.config('enable-serial-console') and release >= 'juno'):
+=======
+    if is_serial_console_enabled(release):
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         packages.extend(SERIAL_CONSOLE['packages'])
     packages.extend(
         ch_utils.token_cache_pkgs(source=hookenv.config('openstack-origin')))
@@ -498,6 +568,31 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
+def is_serial_console_enabled(cmp_os_release=None):
+    """Determine whether serial console is enabled in this deploy
+
+    :param cmp_os_release: Release comparison object.
+    :type cmp_os_release: charmhelpers.contrib.openstack.utils.
+                          CompareOpenStackReleases
+    :returns: Whether serial console is enabled in this deploy
+    :rtype: bool
+    """
+    if not cmp_os_release:
+        release = ch_utils.os_release('nova-common')
+        cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+    return hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'
+
+
+def is_console_auth_enabled():
+    """Determine whether console auth is enabled in this deploy
+
+    :returns: Whether console auth is enabled in this deploy
+    :rtype: bool
+    """
+    return bool(is_serial_console_enabled() or
+                hookenv.config('console-access-protocol'))
+
+
 def is_db_initialised():
     if hookenv.relation_ids('cluster'):
         dbsync_state = ch_peerstorage.peer_retrieve('dbsync_state')
@@ -559,8 +654,13 @@ def _do_openstack_upgrade(new_src):
     ch_fetch.apt_install(determine_packages(), fatal=True)
 
     remove_old_packages()
+<<<<<<< HEAD
+=======
+    disable_package_apache_site()
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     disable_policy_rcd()
+    stop_deprecated_services()
 
     # NOTE(jamespage) upgrade with existing config files as the
     # havana->icehouse migration enables new service_plugins which
@@ -1301,6 +1401,8 @@ def get_optional_interfaces():
         optional_interfaces['cinder'] = ['cinder-volume-service']
     if hookenv.relation_ids('neutron-api'):
         optional_interfaces['neutron-api'] = ['neutron-api']
+    if hookenv.relation_ids('ha'):
+        optional_interfaces['memcache'] = ['memcache']
 
     return optional_interfaces
 
@@ -1448,12 +1550,137 @@ def enable_metadata_api(release=None):
     if not release:
         release = ch_utils.os_release('nova-common')
     return ch_utils.CompareOpenStackReleases(release) >= 'rocky'
+<<<<<<< HEAD
+=======
 
 
-def disable_package_apache_site():
-    """Ensure that the package-provided apache configuration is disabled to
-    prevent it from conflicting with the charm-provided version.
+def disable_package_apache_site(service_reload=False):
+    """Ensure the package-provided apache2 configuration is disabled.
+
+    This ensures the package-provided apache2 configuration doesn't
+    conflict with the charm-provided version.
+
+    :param service_reload: Boolean that indicates the service should
+    be reloaded if a change occurred in sites-enabled.
+
     """
+    site_changed = False
+    if placement_api_enabled():
+        if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
+            subprocess.check_call(['a2dissite', 'nova-placement-api'])
+            site_changed = True
+        if os.path.exists(OLD_WSGI_NOVA_PLACEMENT_API_CONF):
+            # wsgi-openstack-api.conf is generated is copied as a plain
+            # text to sites-enables. a2dissite does not accept to remove
+            # "file" that is not symlink from sites-available.
+            os.remove(OLD_WSGI_NOVA_PLACEMENT_API_CONF)
+            site_changed = True
+    if os.path.exists(PACKAGE_NOVA_API_OS_COMPUTE_CONF):
+        # Even if using systemd or apache for the service we want
+        # remove the conf created by the package installed if exists
+        subprocess.check_call(['a2dissite', 'nova-api-os-compute'])
+        site_changed = True
+
+    if site_changed and service_reload:
+        ch_host.service_reload('apache2', restart_on_failure=True)
+
+
+def stop_deprecated_services():
+    """Stop services that are not used anymore.
+
+    Note: It may be important to also disable the service, see:
+    resource_map.
+    """
+    release = ch_utils.os_release('nova-common')
+    if ch_utils.CompareOpenStackReleases(release) >= 'rocky':
+        ch_host.service_pause('nova-api-os-compute')
+
+
+def get_shared_metadatasecret():
+    """Return the shared metadata secret."""
+    return hookenv.leader_get(SHARED_METADATA_SECRET_KEY)
+
+
+def set_shared_metadatasecret():
+    """Store the shared metadata secret."""
+    hookenv.leader_set({SHARED_METADATA_SECRET_KEY: uuid.uuid1()})
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
+
+
+def get_metadata_settings(configs):
+    """Return the settings for accessing the metadata service."""
+    if enable_metadata_api():
+        url = urlparse(
+            ch_openstack_ip.canonical_url(configs, ch_openstack_ip.INTERNAL))
+        settings = {
+            'nova-metadata-host': url.netloc,
+            'nova-metadata-protocol': url.scheme,
+            'nova-metadata-port': common.api_port('nova-api-metadata'),
+            'shared-metadata-secret': get_shared_metadatasecret()}
+    else:
+        settings = {}
+    return settings
+
+
+def write_vendordata(vdata):
+    """Write supplied vendor data out to a file."""
+    try:
+        json_vdata = json.loads(vdata)
+    except (TypeError, json.decoder.JSONDecodeError) as e:
+        hookenv.log('Error decoding vendor-data. {}'.format(e),
+                    level=hookenv.ERROR)
+        return False
+    with open(VENDORDATA_FILE, 'w') as vdata_file:
+        vdata_file.write(json.dumps(json_vdata, sort_keys=True, indent=2))
+
+
+def get_cell_db_context(db_service):
+    """Return the database context for the given service name"""
+    db_rid = hookenv.relation_id(
+        relation_name='shared-db-cell',
+        service_or_unit=db_service)
+    if not db_rid:
+        return {}
+    return ch_context.SharedDBContext(
+        relation_prefix='nova',
+        ssl_dir=NOVA_CONF_DIR,
+        relation_id=db_rid)()
+
+
+def get_cell_amqp_context(amqp_service):
+    """Return the amqp context for the given service name"""
+    amq_rid = hookenv.relation_id(
+        relation_name='amqp-cell',
+        service_or_unit=amqp_service)
+    if not amq_rid:
+        return {}
+    return ch_context.AMQPContext(
+        ssl_dir=NOVA_CONF_DIR,
+        relation_id=amq_rid)()
+
+
+def get_sql_uri(db_ctxt):
+    """Return the uri for conextind to the database in the supplied context"""
+    uri_template = ("{database_type}://{database_user}:{database_password}"
+                    "@{database_host}/{database}")
+    uri = uri_template.format(**db_ctxt)
+    if db_ctxt.get('database_ssl_ca'):
+        uri = uri + '?ssl_ca={database_ssl_ca}'.format(**db_ctxt)
+        if db_ctxt.get('database_ssl_cert'):
+            uri = uri + ('&ssl_cert={database_ssl_cert}'
+                         '&ssl_key={database_ssl_key}').format(**db_ctxt)
+    return uri
+
+
+def update_child_cell(name, db_service, amqp_service, skip_acl_check=True):
+    """Register cell.
+
+    Registering a cell requires:
+        1) Complete relation with api db service.
+        2) Complete relation with cells db service.
+        3) Complete relation with cells amqp service.
+    """
+<<<<<<< HEAD
     if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
         subprocess.check_call(['a2dissite', 'nova-placement-api'])
 
@@ -1541,6 +1768,8 @@ def update_child_cell(name, db_service, amqp_service, skip_acl_check=True):
         2) Complete relation with cells db service.
         3) Complete relation with cells amqp service.
     """
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     if not is_db_initialised():
         hookenv.log(
             'Defering registering Cell {}, api db not ready.'.format(name),

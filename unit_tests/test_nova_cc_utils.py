@@ -140,7 +140,7 @@ RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/api-paste.ini', ['nova-api-os-compute', 'apache2']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/sites-enabled/wsgi-openstack-api.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
 ])
 RESTART_MAP_OCATA_BASE = OrderedDict([
     ('/etc/nova/nova.conf', [
@@ -152,6 +152,17 @@ RESTART_MAP_OCATA_BASE = OrderedDict([
     ]),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
+])
+RESTART_MAP_ROCKY_ACTUAL = OrderedDict([
+    ('/etc/nova/nova.conf', [
+        'nova-scheduler', 'nova-conductor', 'apache2',
+    ]),
+    ('/etc/nova/api-paste.ini', ['apache2']),
+    ('/etc/haproxy/haproxy.cfg', ['haproxy']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-api-os-compute.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf', ['apache2']),
 ])
 
 
@@ -316,16 +327,6 @@ class NovaCCUtilsTests(CharmTestCase):
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_single_nova_consoleauth(self, subcontext):
-        self.test_config.set('console-access-protocol', 'spice')
-        self.test_config.set('single-nova-consoleauth', True)
-        self.os_release.return_value = 'ocata'
-        self.relation_ids.return_value = ['ha']
-        _map = utils.resource_map()
-        self.assertNotIn('nova-consoleauth',
-                         _map['/etc/nova/nova.conf']['services'])
-
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
@@ -355,6 +356,22 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+<<<<<<< HEAD
+=======
+    def test_restart_map_api_actual_rocky(
+            self, subcontext, _exists, _os_release):
+        _os_release.return_value = 'rocky'
+        self.os_release.return_value = 'rocky'
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        _map = utils.restart_map()
+        self.assertIsInstance(_map, OrderedDict)
+        self.assertEqual(_map, RESTART_MAP_ROCKY_ACTUAL)
+
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     def test_restart_map_api_ocata_base(
             self, subcontext, _exists, _os_release):
         _os_release.return_value = 'ocata'
@@ -392,6 +409,17 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(sorted(_servs), sorted(vnc_servs))
         self.assertEqual(sorted(_pkgs), sorted(vnc_pkgs))
         self.assertEqual(_proxy_page, None)
+
+    def test_console_attributes_console_access_port(self):
+        self.test_config.set('console-access-port', '6080')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'novnc')
+        self.assertEqual(_proxy_port, '6080')
+        self.test_config.set('console-access-port', '6081')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'xvpvnc')
+        self.assertEqual(_proxy_port, '6081')
+        self.test_config.set('console-access-port', '6082')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'spice')
+        self.assertEqual(_proxy_port, '6082')
 
     def test_database_setup(self):
         self.relation_ids.return_value = ['shared-db:12']
@@ -822,6 +850,8 @@ class NovaCCUtilsTests(CharmTestCase):
             'wait.return_value': 0}
         process_mock.configure_mock(**attrs)
         Popen.return_value = process_mock
+<<<<<<< HEAD
+=======
         utils.migrate_nova_databases()
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
@@ -834,6 +864,40 @@ class NovaCCUtilsTests(CharmTestCase):
                   'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose']),
         ])
         map_call = call([
+            'nova-manage',
+            'cell_v2', 'map_instances',
+            '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+            '--max-count', '50000'], stdout=-1)
+        Popen.assert_has_calls([map_call])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.assertTrue(self.service_resume.called)
+
+    @patch('subprocess.Popen')
+    @patch('subprocess.check_output')
+    @patch.object(utils, 'get_cell_uuid')
+    @patch.object(utils, 'is_cellv2_init_ready')
+    def test_migrate_nova_databases_pike(self, cellv2_ready, get_cell_uuid,
+                                         check_output, Popen):
+        "Migrate database with nova-manage in a clustered env"
+        get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        self.relation_ids.return_value = ['cluster:1']
+        self.os_release.return_value = 'pike'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
+        utils.migrate_nova_databases()
+        check_output.assert_has_calls([
+            call(['nova-manage', 'api_db', 'sync']),
+            call(['nova-manage', 'cell_v2', 'map_cell0']),
+            call(['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1',
+                  '--verbose']),
+            call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'db', 'online_data_migrations']),
+            call(['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
+                  'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose']),
+        ])
+        map_call = call([
+<<<<<<< HEAD
             'nova-manage',
             'cell_v2', 'map_instances',
             '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
@@ -871,6 +935,13 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertFalse(map_call in Popen.call_args_list)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.service_resume.called)
+=======
+            'nova-manage', 'cell_v2', 'map_instances', '--cell_uuid',
+            'c83121db-f1c7-464a-b657-38c28fac84c6'])
+        self.assertFalse(map_call in Popen.call_args_list)
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.assertTrue(self.service_resume.called)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     @patch('subprocess.check_output')
     def test_migrate_nova_flavors(self, check_output):
@@ -968,6 +1039,37 @@ class NovaCCUtilsTests(CharmTestCase):
         self.register_configs.assert_called_with(release='mitaka')
         self.assertFalse(migrate_nova_databases.called)
         database_setup.assert_called_with(prefix='novaapi')
+
+    @patch.object(utils, 'online_data_migrations_if_needed')
+    @patch.object(utils, 'disable_package_apache_site')
+    @patch.object(utils, 'database_setup')
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_databases')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_queens_rocky(self, determine_packages,
+                                  migrate_nova_databases,
+                                  get_step_upgrade_source,
+                                  database_setup,
+                                  disable_package_apache_site,
+                                  online_data_migrations_if_needed):
+        "Simulate a call to do_openstack_upgrade() for queens->rocky"
+        self.test_config.set('openstack-origin', 'cloud:bionic-queens')
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'queens'
+        self.get_os_codename_install_source.return_value = 'rocky'
+        self.is_leader.return_value = True
+        self.relation_ids.return_value = []
+        database_setup.return_value = False
+        utils.do_openstack_upgrade(self.register_configs())
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='rocky')
+        self.assertFalse(migrate_nova_databases.called)
+        database_setup.assert_called_with(prefix='novaapi')
+        online_data_migrations_if_needed.assert_called_once()
+        disable_package_apache_site.assert_called_once()
 
     def test_guard_map_nova(self):
         self.relation_ids.return_value = []
@@ -1239,6 +1341,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'get_cell_uuid')
     @patch('subprocess.Popen')
     def test_map_instances(self, mock_popen, mock_get_cell_uuid):
+<<<<<<< HEAD
         cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         process_mock = MagicMock()
         attrs = {
@@ -1255,6 +1358,51 @@ class NovaCCUtilsTests(CharmTestCase):
                 '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
                 '--max-count', '50000'], stdout=-1),
             call().communicate(),
+            call().wait()]
+
+        utils.map_instances()
+        mock_popen.assert_has_calls(expectd_calls, any_order=False)
+
+    @patch.object(utils, 'get_cell_uuid')
+    @patch('subprocess.Popen')
+    def test_map_instances_multi_batch(self, mock_popen, mock_get_cell_uuid):
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        process_mock = MagicMock()
+        rcs = [0, 1]
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.side_effect': lambda: rcs.pop()}
+=======
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        mock_get_cell_uuid.return_value = cell_uuid
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'cell_v2',
+                'map_instances',
+                '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+                '--max-count', '50000'], stdout=-1),
+            call().communicate(),
+<<<<<<< HEAD
+            call().wait(),
+            call([
+                'nova-manage',
+                'cell_v2',
+                'map_instances',
+                '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+                '--max-count', '50000'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+
+        utils.map_instances()
+=======
             call().wait()]
 
         utils.map_instances()
@@ -1291,6 +1439,7 @@ class NovaCCUtilsTests(CharmTestCase):
             call().wait()]
 
         utils.map_instances()
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         self.assertEqual(mock_popen.mock_calls, expectd_calls)
 
     @patch.object(utils, 'get_cell_uuid')
@@ -1328,7 +1477,11 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(mock_popen.mock_calls, expectd_calls)
 
     @patch('subprocess.Popen')
+<<<<<<< HEAD
     def test_archive_deleted_rows_excpetion(self, mock_popen):
+=======
+    def test_archive_deleted_rows_exception(self, mock_popen):
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
         process_mock = MagicMock()
         attrs = {
             'communicate.return_value': ('output', 'error'),
@@ -1337,6 +1490,51 @@ class NovaCCUtilsTests(CharmTestCase):
         mock_popen.return_value = process_mock
         with self.assertRaises(Exception):
             utils.archive_deleted_rows()
+<<<<<<< HEAD
+=======
+
+    def test_is_serial_console_enabled_on_juno(self):
+        self.os_release.return_value = 'juno'
+        self.test_config.set('enable-serial-console', True)
+        self.assertTrue(
+            utils.is_serial_console_enabled())
+
+    def test_is_serial_console_enabled_off_juno(self):
+        self.os_release.return_value = 'juno'
+        self.test_config.set('enable-serial-console', False)
+        self.assertFalse(
+            utils.is_serial_console_enabled())
+
+    def test_is_serial_console_enabled_on_icehouse(self):
+        self.os_release.return_value = 'icehouse'
+        self.test_config.set('enable-serial-console', True)
+        self.assertFalse(
+            utils.is_serial_console_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled(self, is_serial_console_enabled):
+        is_serial_console_enabled.return_value = True
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.assertTrue(
+            utils.is_console_auth_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled_no_serial(self,
+                                               is_serial_console_enabled):
+        is_serial_console_enabled.return_value = False
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.assertTrue(
+            utils.is_console_auth_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled_no_serial_no_console(
+            self,
+            is_serial_console_enabled):
+        is_serial_console_enabled.return_value = False
+        self.test_config.set('console-access-protocol', None)
+        self.assertFalse(
+            utils.is_console_auth_enabled())
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     @patch.object(utils, 'get_cell_uuid')
     @patch('subprocess.check_output')

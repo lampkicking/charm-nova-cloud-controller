@@ -63,9 +63,12 @@ hooks = hookenv.Hooks()
 # Note that CONFIGS is now set up via resolve_CONFIGS so that it is not a
 # module load time constraint.
 CONFIGS = None
+<<<<<<< HEAD
 COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
 AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
 AGENT_CA_PARAMS = 'op monitor interval="5s"'
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 
 def deferred_config(k):
@@ -192,8 +195,13 @@ def install():
     ch_fetch.apt_update()
     ch_fetch.apt_install(ncc_utils.determine_packages(), fatal=True)
 
+<<<<<<< HEAD
     if ncc_utils.placement_api_enabled():
         ncc_utils.disable_package_apache_site()
+=======
+    ncc_utils.disable_package_apache_site()
+    ncc_utils.stop_deprecated_services()
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
     _files = os.path.join(hookenv.charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -284,13 +292,24 @@ def config_changed():
             for unit in hookenv.related_units(rid):
                 compute_changed(rid, unit)
 
+<<<<<<< HEAD
     update_nova_consoleauth_config()
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     ncc_utils.update_aws_compat_services()
 
     if hookenv.config('vendor-data'):
         ncc_utils.write_vendordata(hookenv.config('vendor-data'))
     if hookenv.is_leader() and not ncc_utils.get_shared_metadatasecret():
         ncc_utils.set_shared_metadatasecret()
+<<<<<<< HEAD
+=======
+    for rid in hookenv.relation_ids('ha'):
+        ha_joined(rid)
+    if (not ch_utils.is_unit_paused_set() and
+            ncc_utils.is_console_auth_enabled()):
+        ch_host.service_resume('nova-consoleauth')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 
 @hooks.hook('amqp-relation-joined')
@@ -554,12 +573,20 @@ def console_settings():
 
     if hookenv.config('console-proxy-ip') == 'local':
         if console_ssl:
+<<<<<<< HEAD
             address = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
+=======
+            address = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
             address = ch_network_ip.format_ipv6_addr(address) or address
             proxy_base_addr = 'https://%s' % address
         else:
             # canonical_url will only return 'https:' if API SSL are enabled.
+<<<<<<< HEAD
             proxy_base_addr = ch_ip.canonical_url(CONFIGS, ch_ip.INTERNAL)
+=======
+            proxy_base_addr = ch_ip.canonical_url(CONFIGS, ch_ip.PUBLIC)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     else:
         if console_ssl or ch_cluster.https():
             schema = "https"
@@ -778,6 +805,7 @@ def cluster_changed():
 
 @hooks.hook('ha-relation-joined')
 def ha_joined(relation_id=None):
+<<<<<<< HEAD
     cluster_config = ch_cluster.get_hacluster_config()
     resources = {
         'res_nova_haproxy': 'lsb:haproxy',
@@ -854,6 +882,18 @@ def ha_joined(relation_id=None):
                          resource_params=resource_params,
                          clones=clones,
                          colocations=colocations)
+=======
+    ha_console_settings = {}
+    ha_console_settings['delete_resources'] = [
+        'vip_consoleauth',
+        'res_nova_consoleauth'
+    ]
+    settings = ch_ha_utils.generate_ha_relation_data(
+        'nova',
+        extra_settings=ha_console_settings)
+
+    hookenv.relation_set(relation_id=relation_id, **settings)
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 
 @hooks.hook('ha-relation-changed')
@@ -870,9 +910,11 @@ def ha_changed():
     for rid in hookenv.relation_ids('identity-service'):
         identity_joined(rid=rid)
 
-    update_nova_consoleauth_config()
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 @hooks.hook('shared-db-relation-broken')
 @ncc_utils.service_guard(ncc_utils.guard_map, resolve_CONFIGS,
                          active=deferred_config('service-guard'))
@@ -957,6 +999,16 @@ def upgrade_charm():
         for s in ncc_utils.services():
             ch_host.service_restart(s)
 
+<<<<<<< HEAD
+=======
+    # For users already using bionic-rocky which are upgrading their
+    # charm only we need ensure to not end-up with the old
+    # 'wsgi-openstack-api' and the new 'wsgi-placement-api' apache
+    # configurations installed at the same time.
+    ncc_utils.stop_deprecated_services()
+    ncc_utils.disable_package_apache_site(service_reload=True)
+
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in hookenv.relation_ids('identity-service'):
@@ -970,7 +1022,10 @@ def upgrade_charm():
     leader_init_db_if_ready_allowed_units()
 
     update_nrpe_config()
+<<<<<<< HEAD
     update_nova_consoleauth_config()
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 
 @hooks.hook('neutron-api-relation-joined')
@@ -1049,6 +1104,7 @@ def memcached_common():
 @ch_utils.pausable_restart_on_change(ncc_utils.restart_map, stopstart=True)
 def zeromq_configuration_relation_changed():
     CONFIGS.write(ncc_utils.NOVA_CONF)
+<<<<<<< HEAD
 
 
 def update_nova_consoleauth_config():
@@ -1110,6 +1166,8 @@ def update_nova_consoleauth_config():
 
         if not ch_utils.is_unit_paused_set():
             ch_host.service_resume('nova-consoleauth')
+=======
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
 
 
 def nova_api_relation_joined(rid=None):
@@ -1129,7 +1187,11 @@ def certs_joined(relation_id=None):
 @hooks.hook('certificates-relation-changed')
 @ch_utils.pausable_restart_on_change(ncc_utils.restart_map, stopstart=True)
 def certs_changed(relation_id=None, unit=None):
+<<<<<<< HEAD
     cert_utils.process_certificates('nova', relation_id, unit)
+=======
+    cert_utils.process_certificates('nova', relation_id, unit, group='nova')
+>>>>>>> 01ba0270fd2939f86c8fce73fe1e9521f90e0a01
     configure_https()
 
 
