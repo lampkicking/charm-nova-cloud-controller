@@ -1617,8 +1617,8 @@ def get_optional_interfaces():
         optional_interfaces['cinder'] = ['cinder-volume-service']
     if hookenv.relation_ids('neutron-api'):
         optional_interfaces['neutron-api'] = ['neutron-api']
-    if hookenv.relation_ids('ha'):
-        optional_interfaces['memcache'] = ['memcache']
+    #if hookenv.relation_ids('ha'):
+    #    optional_interfaces['memcache'] = ['memcache']
 
     return optional_interfaces
 
